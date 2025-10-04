@@ -78,9 +78,8 @@ CREATE TABLE prd_spu
 # SKUコードやサイズ・カラーなどのバリエーション属性を管理し、商品検索や外部連携に活用します。価格系カラムと監査項目を備え、商品マスター運用や在庫連携の整合性を取りやすくしています。
 # 使用例: レディースシャツ SPU に対して「ブルー/M サイズ」や「ホワイト/L サイズ」の SKU を登録。
 # Columnについては解説
-# sku_code: 倉庫・EC・POS を横断して使う一意コード。
+# sku_code: 倉庫・EC を横断して使う一意コード。
 # size / color: バリエーション属性。フィルタや在庫連携のキー。
-# default_image_url: 商品詳細で最初に表示する代表画像。
 CREATE TABLE prd_sku
 (
     id                BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'SKU ID',
@@ -155,14 +154,13 @@ CREATE TABLE inv_stock
 # 変動種別や発生元情報、変動後在庫を記録し、在庫調査・会計監査・指標分析（回転率など）に活用します。
 # 使用例: 入庫イベントで +50、注文引当で -1 といった変動を記録し、残数や出所を追跡。
 # Columnについては解説
-# change_type: 入庫/出庫/返品などのイベント種別。
-# source_type / source_id: 変動を起こしたトリガー（注文・補充など）の識別子。
-# available_quantity_after: 変動後の販売可能在庫。異常検知の基準。
+# change_type: INBOUND(入庫)/OUTBOUND(出庫)/RESERVE(引当)/RELEASE(解放) などのイベント種別。
+# source_type / source_id: 発生元の種別（ORDER/PROCUREMENT 等）と、その ID をペアで保持。
 CREATE TABLE inv_stock_movement
 (
     id                       BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '在庫変動ID',
     sku_id                   BIGINT UNSIGNED NOT NULL COMMENT '対象SKU ID',
-    change_type              VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '変動種別（入庫・出庫など）',
+    change_type              VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '変動種別（INBOUND/OUTBOUND/RESERVE/RELEASE 等）',
     change_quantity          INT             NOT NULL COMMENT '変動数量（マイナスは減少）',
     available_quantity_after INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '変動後可用在庫',
     reserved_quantity_after  INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '変動後予約在庫',
@@ -184,7 +182,7 @@ ENGINE = InnoDB
 
 # cpn_coupon はクーポンの基本定義を管理するテーブルです。
 # 割引タイプ・金額・利用上限・期間などのルールを保持し、発券・適用フローで参照されます。version 列による楽観ロックで運用変更の競合を防ぎます。
-# 使用例: 「母の日 500 円OFF」固定額クーポンを登録し、有効期間や利用上限を設定。
+# 使用例: 「母の日 定額OFF（ex. 10$ discount）か、定率OFF（ex. 10% discount、有効期間や利用上限を設定。
 # Columnについては解説
 # discount_type: 固定額/％などの割引種別。金額計算ロジックを切り替える。
 # discount_amount / discount_rate: 割引の基準値。type に応じて片方を利用。
@@ -196,7 +194,7 @@ CREATE TABLE cpn_coupon
     coupon_code         VARCHAR(64)    NOT NULL DEFAULT '' COMMENT 'クーポンコード（外部公開用一意ID）',
     coupon_name         VARCHAR(128)   NOT NULL DEFAULT '' COMMENT 'クーポン名称',
     description         VARCHAR(255)            DEFAULT '' COMMENT '概要・説明',
-    discount_type       VARCHAR(16)    NOT NULL DEFAULT '' COMMENT '割引タイプ（FIXED/PERCENT...）',
+    discount_type       VARCHAR(16)    NOT NULL DEFAULT '' COMMENT '割引タイプ（FIXED=定額/PERCENT=定率 など）',
     discount_amount     DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT '定額割引額',
     discount_rate       DECIMAL(5, 2)  NOT NULL DEFAULT 0.00 COMMENT '定率割引率（%）',
     min_order_amount    DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT '利用条件：最低注文金額',
@@ -573,4 +571,3 @@ CREATE TABLE ord_order_item
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='注文明細';
-
