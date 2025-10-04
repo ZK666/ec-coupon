@@ -18,6 +18,8 @@
 # adm_user, adm_role, adm_permission
 
 
+# usr_user は会員の基礎属性を保持するテーブルです。
+# 外部公開用の user_code を中心に、認証状態（メール・電話）、有効フラグ、論理削除フラグを持ち、認証や本人確認に必要な情報を揃えます。
 CREATE TABLE usr_user
 (
     id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'ユーザID',
@@ -44,6 +46,8 @@ CREATE TABLE usr_user
 
 
 
+# prd_spu は商品マスターの上位概念（SPU）を管理するテーブルです。
+# ブランド・カテゴリなどの共通属性をまとめ、SKU や商品画像テーブルと連携して商品情報の整理・検索を容易にします。
 CREATE TABLE prd_spu
 (
     id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'SPU ID',
@@ -61,7 +65,8 @@ CREATE TABLE prd_spu
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='商品SPU（標準商品単位）';
 
-
+# prd_sku は SPU に紐づく販売単位（SKU）を保持するテーブルです。
+# SKUコードやサイズ・カラーなどのバリエーション属性を管理し、商品検索や外部連携に活用します。価格系カラムと監査項目を備え、商品マスター運用や在庫連携の整合性を取りやすくしています。
 CREATE TABLE prd_sku
 (
     id                BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'SKU ID',
@@ -81,7 +86,8 @@ CREATE TABLE prd_sku
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='商品SKU（個別商品単位）';
 
-
+# prd_sku_image は SKU ごとの画像情報を保持するテーブルです。メイン画像フラグや表示順を管理し、商品表示や
+# 管理画面での並び替えに利用します。論理削除・監査カラムで運用履歴も追跡できます。
 CREATE TABLE prd_sku_image
 (
     id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'SKU画像ID',
@@ -100,7 +106,8 @@ CREATE TABLE prd_sku_image
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='SKU画像テーブル';
 
-
+# inv_stock は SKU 単位の在庫残高を管理するテーブルです。可用数量・予約数量・安全在庫を保持し、version 列で
+# 楽観ロックを行います。EC・OMS・倉庫システム間の在庫同期で基準となる値です。
 CREATE TABLE inv_stock
 (
     id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '在庫ID',
@@ -119,7 +126,8 @@ CREATE TABLE inv_stock
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='SKU在庫（単一バケット）';
 
-
+# inv_stock_movement は在庫変動を履歴として保持するテーブルです。変動種別や発生元情報、変動後在庫を記録し、
+# 在庫調査・会計監査・指標分析（回転率など）に活用します。
 CREATE TABLE inv_stock_movement
 (
     id                       BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '在庫変動ID',
@@ -144,7 +152,8 @@ ENGINE = InnoDB
 
 
 
-
+# cpn_coupon はクーポンの基本定義を管理するテーブルです。割引タイプ・金額・利用上限・期間などのルールを保持し、
+# 発券・適用フローで参照されます。version 列による楽観ロックで運用変更の競合を防ぎます。
 CREATE TABLE cpn_coupon
 (
     id                  BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポンID',
@@ -174,7 +183,8 @@ CREATE TABLE cpn_coupon
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン基本情報';
 
-
+# cpn_coupon_audience_rule はクーポン対象者設定のヘッダを管理するテーブルです。対象タイプ、優先度、除外フラグを
+# 定義し、子テーブル（ユーザ・割合など）と組み合わせて柔軟な対象条件を表現します。
 CREATE TABLE cpn_coupon_audience_rule
 (
     id           BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン対象ルールID',
@@ -191,7 +201,8 @@ CREATE TABLE cpn_coupon_audience_rule
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（ヘッダ）';
 
-
+# cpn_coupon_audience_user は個別ユーザを対象とするルールの明細テーブルです。ルールIDと user_code を紐付け、
+# 名簿配布や除外リストを表現します。一意制約と監査項目で運用ミスを防ぎます。
 CREATE TABLE cpn_coupon_audience_user
 (
     id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン個別ユーザ対象ID',
@@ -209,7 +220,8 @@ CREATE TABLE cpn_coupon_audience_user
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（個別ユーザ）';
 
-
+# cpn_coupon_audience_bucket はハッシュ分割による割合配布ルールを保持します。bucket_modulus と start/end で
+# 割当割合を制御し、ランダム配布や AB テストに活用します。
 CREATE TABLE cpn_coupon_audience_bucket
 (
     id             BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン割合対象ID',
@@ -229,7 +241,8 @@ CREATE TABLE cpn_coupon_audience_bucket
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（割合指定）';
 
-
+# cpn_coupon_grant_batch はクーポンの一括発行ジョブを管理します。予定数・実績数・ステータスやスケジュールを保持し、
+# イベント配布や定期配布の進捗管理に利用します。
 CREATE TABLE cpn_coupon_grant_batch
 (
     id                   BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン発行バッチID',
@@ -261,6 +274,7 @@ ENGINE = InnoDB
 
 
 # 上限値（発行可能枚数など）は cpn_coupon テーブルの total_issue_limit に保持しています。 cpn_coupon_inventory では現時点の発行数／使用数とバージョン管理だけを扱い、上限自体は参照する形です。
+# cpn_coupon_inventory はクーポンの発行枚数・利用枚数・ロック枚数を管理し、version 列による楽観ロックで発券/利用処理の整合を保ちます。
 CREATE TABLE cpn_coupon_inventory
 (
     id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン在庫ID',
@@ -280,6 +294,9 @@ CREATE TABLE cpn_coupon_inventory
     DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン在庫状態';
 
 
+
+# cpn_coupon_user はユーザが保有するクーポンチケットを管理します。取得方法やステータス、仮押さえ情報を保持し、
+# 利用上限の判定や利用状況の追跡に利用します。
 # per_user_sequence は「同じクーポンをそのユーザが何枚目として取得したか」を表す連番です。
 -- UNIQUE KEY (coupon_id, user_id, per_user_sequence) にしておくことで、同じ番号を重複登録しないよう制御する仕組みです（＝上限超過を防ぐ）。
 CREATE TABLE cpn_coupon_user
@@ -319,3 +336,155 @@ CREATE TABLE cpn_coupon_user
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン';
+
+# cpn_coupon_usage はクーポンの注文適用履歴を管理するテーブルです。適用額・返金額・利用状態や対象注文を記録し、
+# 決済・返品・会計処理の整合を追跡します。
+CREATE TABLE cpn_coupon_usage
+(
+    id                   BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン利用履歴ID',
+    coupon_user_id       BIGINT UNSIGNED NOT NULL COMMENT 'ユーザ保有クーポンID',
+    coupon_id            BIGINT UNSIGNED NOT NULL COMMENT 'クーポンID',
+    coupon_code          VARCHAR(64)     NOT NULL COMMENT 'クーポンコード',
+    user_id              BIGINT UNSIGNED NOT NULL COMMENT 'ユーザID',
+    user_code            VARCHAR(64)     NOT NULL COMMENT 'ユーザコード',
+    order_id             BIGINT UNSIGNED          DEFAULT NULL COMMENT '利用注文ID',
+    order_code           VARCHAR(64)              DEFAULT NULL COMMENT '利用注文コード',
+    usage_status         VARCHAR(32)     NOT NULL DEFAULT 'APPLIED' COMMENT '利用状態（APPLIED/ROLLED_BACK/REFUNDED 等）',
+    applied_amount       DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '適用割引額',
+    refunded_amount      DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '返金済み割引額',
+    settled_amount       DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '最終確定割引額',
+    applied_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '適用日時',
+    settled_at           DATETIME                 DEFAULT NULL COMMENT '確定日時（返品判定や会計締め用）',
+    rolled_back_at       DATETIME                 DEFAULT NULL COMMENT '取り消し日時',
+    rollback_reason      VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '取消理由',
+    notes                VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '補足メモ',
+    version              INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'バージョン（楽観ロック用）',
+    is_deleted           BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by           VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by           VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    KEY idx_cpn_usage_coupon_user (coupon_user_id),
+    KEY idx_cpn_usage_coupon (coupon_id),
+    KEY idx_cpn_usage_order (order_id),
+    KEY idx_cpn_usage_status (usage_status),
+    KEY idx_cpn_usage_applied_at (applied_at)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン利用履歴';
+
+# cpn_coupon_user_history はユーザ保有クーポンの状態遷移ログを保持します。変更前後のステータスや操作種別、
+# 関連注文・利用履歴を記録し、監査やトラブル調査に利用します。
+CREATE TABLE cpn_coupon_user_history
+(
+    id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'ユーザ保有クーポン状態履歴ID',
+    coupon_user_id     BIGINT UNSIGNED NOT NULL COMMENT 'ユーザ保有クーポンID',
+    coupon_id          BIGINT UNSIGNED NOT NULL COMMENT 'クーポンID',
+    coupon_code        VARCHAR(64)     NOT NULL COMMENT 'クーポンコード',
+    user_id            BIGINT UNSIGNED NOT NULL COMMENT 'ユーザID',
+    user_code          VARCHAR(64)     NOT NULL COMMENT 'ユーザコード',
+    from_status        VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '変更前状態（AVAILABLE/RESERVED/USED/EXPIRED 等）',
+    to_status          VARCHAR(32)     NOT NULL COMMENT '変更後状態',
+    transition_type    VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '操作種別（CLAIM/RESERVE/APPLY/RELEASE/REVOKE 等）',
+    related_order_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連注文ID',
+    related_order_code VARCHAR(64)              DEFAULT NULL COMMENT '関連注文コード',
+    related_usage_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連利用履歴ID',
+    reason             VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '変更理由',
+    is_deleted         BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    KEY idx_cpn_user_history_coupon_user (coupon_user_id),
+    KEY idx_cpn_user_history_coupon (coupon_id),
+    KEY idx_cpn_user_history_order (related_order_id),
+    KEY idx_cpn_user_history_created_at (created_at)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン状態履歴';
+
+
+# ord_order は EC 注文のヘッダ情報を管理するテーブルです。金額内訳、状態、適用クーポンや支払・配送ステータスを一元的に保持し、
+# 決済・出荷・アフターサービスの各フローの起点となります。
+CREATE TABLE ord_order
+(
+    id                       BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '注文ID',
+    order_code               VARCHAR(64)     NOT NULL COMMENT '注文コード（外部公開用一意ID）',
+    user_id                  BIGINT UNSIGNED NOT NULL COMMENT 'ユーザID',
+    user_code                VARCHAR(64)     NOT NULL COMMENT 'ユーザコード',
+    status                   VARCHAR(32)     NOT NULL DEFAULT 'CREATED' COMMENT '注文状態（CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELED 等）',
+    order_type               VARCHAR(32)     NOT NULL DEFAULT 'GENERAL' COMMENT '注文タイプ（GENERAL/PREORDER 等）',
+    channel                  VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '注文チャネル（WEB/APP/OFFLINE など）',
+    currency                 VARCHAR(8)      NOT NULL DEFAULT 'JPY' COMMENT '通貨コード',
+    subtotal_amount          DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '商品小計（税込み前）',
+    discount_amount          DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '割引合計（クーポン・プロモーション等）',
+    tax_amount               DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '税額合計',
+    shipping_amount          DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '送料',
+    total_amount             DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '支払総額（税込み）',
+    coupon_id                BIGINT UNSIGNED          DEFAULT NULL COMMENT '適用クーポンID',
+    coupon_code              VARCHAR(64)              DEFAULT NULL COMMENT '適用クーポンコード',
+    coupon_discount_amount   DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT 'クーポン割引額',
+    payment_status           VARCHAR(32)     NOT NULL DEFAULT 'PENDING' COMMENT '決済状態（PENDING/PAID/FAILED/REFUNDED 等）',
+    shipment_status          VARCHAR(32)     NOT NULL DEFAULT 'PENDING' COMMENT '出荷状態（PENDING/SHIPPED/DELIVERED 等）',
+    ordered_at               DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注文日時',
+    cancelled_at             DATETIME                 DEFAULT NULL COMMENT 'キャンセル日時',
+    notes                    VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '備考（オペレーション向けメモ）',
+    shipping_address_snapshot JSON                   DEFAULT NULL COMMENT '配送先スナップショット（JSON）',
+    billing_address_snapshot JSON                    DEFAULT NULL COMMENT '請求先スナップショット（JSON）',
+    version                  INT UNSIGNED     NOT NULL DEFAULT 0 COMMENT 'バージョン（楽観ロック用）',
+    is_deleted               BOOLEAN          NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by               VARCHAR(128)     NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by               VARCHAR(128)     NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at               DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at               DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    UNIQUE KEY uq_ord_order_code (order_code),
+    KEY idx_ord_order_user (user_id),
+    KEY idx_ord_order_status (status),
+    KEY idx_ord_order_payment_status (payment_status),
+    KEY idx_ord_order_shipment_status (shipment_status),
+    KEY idx_ord_order_created_at (created_at),
+    KEY idx_ord_order_coupon (coupon_id)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='注文ヘッダ';
+
+
+# ord_order_item は注文に含まれる商品明細を管理するテーブルです。SKU・数量・価格情報のスナップショットを保持し、
+# 在庫引当・返品・売上分析などの粒度として活用します。
+CREATE TABLE ord_order_item
+(
+    id               BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '注文明細ID',
+    order_id         BIGINT UNSIGNED NOT NULL COMMENT '注文ID',
+    order_code       VARCHAR(64)     NOT NULL COMMENT '注文コード',
+    line_number      INT UNSIGNED    NOT NULL DEFAULT 1 COMMENT '明細行番号',
+    spu_id           BIGINT UNSIGNED NOT NULL COMMENT '対象SPU ID',
+    sku_id           BIGINT UNSIGNED NOT NULL COMMENT '対象SKU ID',
+    sku_code         VARCHAR(64)     NOT NULL COMMENT 'SKUコード',
+    product_name     VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '商品名（注文時スナップショット）',
+    quantity         INT UNSIGNED    NOT NULL DEFAULT 1 COMMENT '数量',
+    list_price       DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '定価単価',
+    sale_price       DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '販売単価（割引後）',
+    discount_amount  DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '明細割引額',
+    tax_amount       DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '明細税額',
+    total_amount     DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '明細合計（税抜）',
+    item_status      VARCHAR(32)     NOT NULL DEFAULT 'PENDING' COMMENT '明細状態（PENDING/ALLOCATED/SHIPPED/CANCELED 等）',
+    is_deleted       BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by       VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by       VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    UNIQUE KEY uq_ord_order_item_line (order_id, line_number),
+    KEY idx_ord_order_item_order (order_id),
+    KEY idx_ord_order_item_code (order_code),
+    KEY idx_ord_order_item_sku (sku_id),
+    KEY idx_ord_order_item_status (item_status)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='注文明細';
+
+
+# ord_payment は注文に紐づく決済トランザクションを管理するテーブルです。決済手段・プロバイダ・取引状態や各種時刻を
+# 記録し、オーソリ〜キャプチャ〜返金までのライフサイクルを追跡します。
+# ord_shipment は注文に対する配送情報を管理するテーブルです。配送業者・追跡番号・出荷/配達時刻や配送先スナップショットを
+# 保持し、出荷進捗や問い合わせ対応に利用します。
+
