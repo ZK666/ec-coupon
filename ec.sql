@@ -219,9 +219,9 @@ CREATE TABLE cpn_coupon
 
 # cpn_coupon_audience_rule はクーポン対象者設定のヘッダを管理するテーブルです。
 # 対象タイプ、優先度、除外フラグを定義し、子テーブル（ユーザ・割合など）と組み合わせて柔軟な対象条件を表現します。
-# 使用例: 「VIP 会員を許可」「ブラックリストを除外」といったルールを優先度付きで保持。
+# 使用例: rule_type='USER_CODE' でユーザAのみ許可、rule_type='PERCENT_BUCKET' で全体の10%を対象にすることが出来る。
 # Columnについては解説
-# rule_type: ALL_USERS/USER_CODE/PERCENT_BUCKET などの判定方式。
+# rule_type: 判定方式（ALL_USERS=全員、USER_CODE=個別指定、PERCENT_BUCKET=割合配布 など）。
 # priority: ルール評価の順番。数値が小さいほど先に判定。
 # is_exclusion: TRUE の場合は対象から外す除外条件として扱う。
 CREATE TABLE cpn_coupon_audience_rule
@@ -242,7 +242,7 @@ ENGINE = InnoDB
 
 # cpn_coupon_audience_user は個別ユーザを対象とするルールの明細テーブルです。
 # ルールIDと user_code を紐付け、名簿配布や除外リストを表現します。一意制約と監査項目で運用ミスを防ぎます。
-# 使用例: 「user_code=U12345 に配布」「user_code=U99999 を除外」といった名簿を登録。
+# 使用例: 「user_code=U12345,U12346 に配布」「user_code=U99999 を除外」といった名簿を登録。
 # Columnについては解説
 # rule_id: ヘッダルールとの関連。対象クーポンや優先度を決定。
 # user_code: 配布/除外対象となるユーザ識別子。
@@ -263,9 +263,17 @@ CREATE TABLE cpn_coupon_audience_user
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（個別ユーザ）';
 
-# cpn_coupon_audience_bucket はハッシュ分割による割合配布ルールを保持します。
-# bucket_modulus と start/end で割当割合を制御し、ランダム配布や AB テストに活用します。
+# cpn_coupon_audience_bucket はハッシュ分割による割合配布ルールを保持するテーブル。
 # 使用例: bucket_modulus=100, start=0, end=9 で全ユーザの 10% にランダム配布。
+# CRC32 を使った実例です。ルールは hash_algorithm=CRC32, bucket_modulus=100, bucket_start=0, bucket_end=9（→ 全ユーザの約 10％を対象）とします。
+#
+#   user_code   CRC32(16進)   CRC32 % 100   判定
+#   ------------------------------------------------
+#   US123456    0xd269a323          3      0〜9 に入るので命中
+#   US238765    0x0efec31c         16      10以上なので対象外
+#   VIP0001     0x97f5bc64         64      対象外
+#   VIP0002     0x0efcedde         90      対象外
+
 # Columnについては解説
 # bucket_modulus: ハッシュの分母。100 なら 0〜99 の 100 分割。
 # bucket_start / bucket_end: 配布対象とするバケット範囲。
@@ -289,8 +297,37 @@ CREATE TABLE cpn_coupon_audience_bucket
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（割合指定）';
 
+
+
+# cpn_coupon_inventory はクーポンの発行枚数・利用枚数・ロック枚数を管理するテーブルです。
+# 上限値（発行可能枚数など）は cpn_coupon テーブルの total_issue_limit に保持しています。 cpn_coupon_inventory では現時点の発行数／使用数とバージョン管理だけを扱い、上限自体は参照する形です。
+# version 列による楽観ロックで発券/利用処理の整合を保ちます。
+# 使用例: クーポン CPN1001 で issued=2000、redeemed=1500、locked=20 を記録し残枚数を算出。
+# Columnについては解説
+# issued_count: これまで発行済みの枚数。増加のみ。
+# redeemed_count: 利用済み枚数。クーポン使用確定時に増える。
+# locked_count: 一時的に確保している枚数。予約/カート滞留で増減。
+CREATE TABLE cpn_coupon_inventory
+(
+    id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン在庫ID',
+    coupon_id          BIGINT UNSIGNED NOT NULL COMMENT '対象クーポンID',
+    issued_count       INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '発行済み枚数',
+    redeemed_count     INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '利用済み枚数',
+    locked_count       INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'ロック中枚数（仮押さえ）',
+    version            INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'バージョン（楽観ロック用）',
+    is_deleted         BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    UNIQUE KEY uq_cpn_coupon_inventory (coupon_id)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン在庫状態';
+
+
 # cpn_coupon_grant_batch はクーポンの一括発行ジョブを管理します。
-# 予定数・実績数・ステータスやスケジュールを保持し、イベント配布や定期配布の進捗管理に利用します。
+# クーポンを主动配布するときに使う管理テーブルで、バッチごとの発行枚数や状態を記録します。ユーザー自身がクーポンを受け取る場合は、このテーブルにレコードは作成されません。
 # 使用例: 「ブラックフライデーキャンペーン」で 5 万枚配布する夜間バッチを記録。
 # Columnについては解説
 # grant_method: MANUAL/EVENT などの発行方法。レポート集計の軸。
@@ -323,48 +360,22 @@ CREATE TABLE cpn_coupon_grant_batch
     KEY idx_cpn_coupon_grant_batch_status (status),
     KEY idx_cpn_coupon_grant_batch_schedule (scheduled_at)
 )
-ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン発行バッチ';
-
-
-# 上限値（発行可能枚数など）は cpn_coupon テーブルの total_issue_limit に保持しています。 cpn_coupon_inventory では現時点の発行数／使用数とバージョン管理だけを扱い、上限自体は参照する形です。
-# cpn_coupon_inventory はクーポンの発行枚数・利用枚数・ロック枚数を管理するテーブルです。
-# version 列による楽観ロックで発券/利用処理の整合を保ちます。
-# 使用例: クーポン CPN1001 で issued=2000、redeemed=1500、locked=20 を記録し残枚数を算出。
-# Columnについては解説
-# issued_count: これまで発行済みの枚数。増加のみ。
-# redeemed_count: 利用済み枚数。クーポン使用確定時に増える。
-# locked_count: 一時的に確保している枚数。予約/カート滞留で増減。
-CREATE TABLE cpn_coupon_inventory
-(
-    id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン在庫ID',
-    coupon_id          BIGINT UNSIGNED NOT NULL COMMENT '対象クーポンID',
-    issued_count       INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '発行済み枚数',
-    redeemed_count     INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '利用済み枚数',
-    locked_count       INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'ロック中枚数（仮押さえ）',
-    version            INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'バージョン（楽観ロック用）',
-    is_deleted         BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
-    created_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
-    updated_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
-    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
-    updated_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
-    UNIQUE KEY uq_cpn_coupon_inventory (coupon_id)
-)
     ENGINE = InnoDB
-    DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン在庫状態';
+    DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン発行バッチ';
 
 
 
 # cpn_coupon_user はユーザが保有するクーポンチケットを管理するテーブルです。
 # 取得方法やステータス、仮押さえ情報を保持し、利用上限の判定や利用状況の追跡に利用します。
-# 使用例: ユーザ U12345 が「母の日 500 円OFF」を SELF_CLAIM で取得し、予約中か使用済みかを追跡。
+# 使用例: ユーザ U12345 が「母の日 500 円OFF」を取得し、status を AVAILABLE→RESERVED→USED と遷移させて利用状況を管理。
 # Columnについては解説
 # status: AVAILABLE/RESERVED/USED などの券ステータス。
-# per_user_sequence: 同一ユーザが取得した順番を管理する連番。
+# per_user_sequence は「同じクーポンをそのユーザが何枚目として取得したか」を表す連番です。
+# UNIQUE KEY (coupon_id, user_id, per_user_sequence) にしておくことで、同じ番号を重複登録しないよう制御する仕組みです（＝上限超過を防ぐ）。
+
 # reserved_order_id / reserved_expire_at: どの注文で仮押さえ中かと、解放期限。
 # used_order_id / used_order_code: 実際に利用した注文を追跡。
 # per_user_sequence は「同じクーポンをそのユーザが何枚目として取得したか」を表す連番です。
--- UNIQUE KEY (coupon_id, user_id, per_user_sequence) にしておくことで、同じ番号を重複登録しないよう制御する仕組みです（＝上限超過を防ぐ）。
 CREATE TABLE cpn_coupon_user
 (
     id                BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'ユーザ保有クーポンID',
@@ -403,13 +414,50 @@ CREATE TABLE cpn_coupon_user
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン';
 
+# cpn_coupon_user_history はユーザ保有クーポンの状態遷移ログを保持するテーブルです。
+# 変更前後のステータスや操作種別、関連注文・利用履歴を記録し、監査やトラブル調査に利用します。
+# 使用例: AVAILABLE → RESERVED → USED → REFUNDED の遷移を時系列で保存し、問い合わせ対応時に参照。
+# Columnについては解説
+# from_status / to_status: 状態遷移の前後値。
+# transition_type:  CLAIM=受け取り/発券、RESERVE=仮押さえ、APPLY=適用、RELEASE=解除、REVOKE=強制回収。 などの操作種別。
+# related_order_id / related_usage_id: 連動した注文・利用履歴を追跡。
+CREATE TABLE cpn_coupon_user_history
+(
+    id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'ユーザ保有クーポン状態履歴ID',
+    coupon_user_id     BIGINT UNSIGNED NOT NULL COMMENT 'ユーザ保有クーポンID',
+    coupon_id          BIGINT UNSIGNED NOT NULL COMMENT 'クーポンID',
+    coupon_code        VARCHAR(64)     NOT NULL COMMENT 'クーポンコード',
+    user_id            BIGINT UNSIGNED NOT NULL COMMENT 'ユーザID',
+    user_code          VARCHAR(64)     NOT NULL COMMENT 'ユーザコード',
+    from_status        VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '変更前状態（AVAILABLE/RESERVED/USED/EXPIRED 等）',
+    to_status          VARCHAR(32)     NOT NULL COMMENT '変更後状態',
+    transition_type    VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '操作種別（CLAIM/RESERVE/APPLY/RELEASE/REVOKE 等）',
+    related_order_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連注文ID',
+    related_order_code VARCHAR(64)              DEFAULT NULL COMMENT '関連注文コード',
+    related_usage_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連利用履歴ID',
+    reason             VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '変更理由',
+    is_deleted         BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
+    created_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
+    updated_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
+    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
+    updated_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    KEY idx_cpn_user_history_coupon_user (coupon_user_id),
+    KEY idx_cpn_user_history_coupon (coupon_id),
+    KEY idx_cpn_user_history_order (related_order_id),
+    KEY idx_cpn_user_history_created_at (created_at)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン状態履歴';
+
+
 # cpn_coupon_usage はクーポンの注文適用履歴を管理するテーブルです。
 # 適用額・返金額・利用状態や対象注文を記録し、決済・返品・会計処理の整合を追跡します。
-# 使用例: 注文 ORD-20240501 にクーポン CPN1001 を適用し 500 円割引、キャンセル時は ROLLED_BACK に更新。
+# 使用例: 注文 ORD-20240501 にクーポン CPN1001 を適用して 50 円割引、キャンセル時に usage_status を ROLLED_BACK に更新し、クーポンをユーザへ返す。
 # Columnについては解説
 # usage_status: APPLIED/ROLLED_BACK/REFUNDED などの利用状態。
-# applied_amount: 適用した割引額。注文確定時に記録。
-# refunded_amount / settled_amount: 返金・最終精算金額。逆取引で更新。
+# applied_amount: 例: 5000円のドレスに500円OFFクーポンを適用し、実際に割引された500円を記録。
+# refunded_amount: 例: ドレスのうち2000円分だけ返品し、割引分に相当する200円を利用者へ返金した場合、その200円を記録。
+# settled_amount: 例: 返品処理が完了し、最終的に消化された割引額が300円となったとき、その300円を確定額として保持。
 # order_id / order_code: どの注文に紐づくかを追跡。
 CREATE TABLE cpn_coupon_usage
 (
@@ -445,41 +493,7 @@ CREATE TABLE cpn_coupon_usage
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン利用履歴';
 
-# cpn_coupon_user_history はユーザ保有クーポンの状態遷移ログを保持するテーブルです。
-# 変更前後のステータスや操作種別、関連注文・利用履歴を記録し、監査やトラブル調査に利用します。
-# 使用例: AVAILABLE → RESERVED → USED → REFUNDED の遷移を時系列で保存し、問い合わせ対応時に参照。
-# Columnについては解説
-# from_status / to_status: 状態遷移の前後値。
-# transition_type: RESERVE/APPLY/RELEASE などの操作種別。
-# related_order_id / related_usage_id: 連動した注文・利用履歴を追跡。
-# operator: 操作主体（system / user 等）の記録。
-CREATE TABLE cpn_coupon_user_history
-(
-    id                 BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'ユーザ保有クーポン状態履歴ID',
-    coupon_user_id     BIGINT UNSIGNED NOT NULL COMMENT 'ユーザ保有クーポンID',
-    coupon_id          BIGINT UNSIGNED NOT NULL COMMENT 'クーポンID',
-    coupon_code        VARCHAR(64)     NOT NULL COMMENT 'クーポンコード',
-    user_id            BIGINT UNSIGNED NOT NULL COMMENT 'ユーザID',
-    user_code          VARCHAR(64)     NOT NULL COMMENT 'ユーザコード',
-    from_status        VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '変更前状態（AVAILABLE/RESERVED/USED/EXPIRED 等）',
-    to_status          VARCHAR(32)     NOT NULL COMMENT '変更後状態',
-    transition_type    VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '操作種別（CLAIM/RESERVE/APPLY/RELEASE/REVOKE 等）',
-    related_order_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連注文ID',
-    related_order_code VARCHAR(64)              DEFAULT NULL COMMENT '関連注文コード',
-    related_usage_id   BIGINT UNSIGNED          DEFAULT NULL COMMENT '関連利用履歴ID',
-    reason             VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '変更理由',
-    is_deleted         BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
-    created_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
-    updated_by         VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
-    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
-    updated_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
-    KEY idx_cpn_user_history_coupon_user (coupon_user_id),
-    KEY idx_cpn_user_history_coupon (coupon_id),
-    KEY idx_cpn_user_history_order (related_order_id),
-    KEY idx_cpn_user_history_created_at (created_at)
-)
-    ENGINE = InnoDB
-    DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン状態履歴';
+
 
 
 # ord_order は EC 注文のヘッダ情報を管理するテーブルです。
