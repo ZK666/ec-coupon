@@ -241,23 +241,26 @@ ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（ヘッダ）';
 
 # cpn_coupon_audience_user は個別ユーザを対象とするルールの明細テーブルです。
-# ルールIDと user_code を紐付け、名簿配布や除外リストを表現します。一意制約と監査項目で運用ミスを防ぎます。
+# ルールIDと user_id/user_code を紐付け、名簿配布や除外リストを表現します。一意制約と監査項目で運用ミスを防ぎます。
 # 使用例: 「user_code=U12345,U12346 に配布」「user_code=U99999 を除外」といった名簿を登録。
 # Columnについては解説
 # rule_id: ヘッダルールとの関連。対象クーポンや優先度を決定。
-# user_code: 配布/除外対象となるユーザ識別子。
+# user_id / user_code: ユーザIDと公開コード。JOIN や変更追跡のため両方保持。
 CREATE TABLE cpn_coupon_audience_user
 (
     id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'クーポン個別ユーザ対象ID',
     rule_id    BIGINT UNSIGNED NOT NULL COMMENT '対応するルールID',
+    user_id    BIGINT UNSIGNED NOT NULL COMMENT '対象ユーザID',
     user_code  VARCHAR(64)     NOT NULL COMMENT '対象ユーザコード',
     is_deleted BOOLEAN         NOT NULL DEFAULT FALSE COMMENT '削除フラグ（論理削除）',
     created_by VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '作成者ユーザ名',
     updated_by VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '更新者ユーザ名',
     created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
     updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',
+    UNIQUE KEY uq_cpn_audience_user_rule (rule_id, user_id),
     UNIQUE KEY uq_cpn_audience_user_rule_code (rule_id, user_code),
     KEY idx_cpn_audience_user_rule (rule_id),
+    KEY idx_cpn_audience_user_id (user_id),
     KEY idx_cpn_audience_user_code (user_code)
 )
 ENGINE = InnoDB
@@ -368,6 +371,7 @@ CREATE TABLE cpn_coupon_grant_batch
 # cpn_coupon_user はユーザが保有するクーポンチケットを管理するテーブルです。
 # 取得方法やステータス、仮押さえ情報を保持し、利用上限の判定や利用状況の追跡に利用します。
 # 使用例: ユーザ U12345 が「母の日 500 円OFF」を取得し、status を AVAILABLE→RESERVED→USED と遷移させて利用状況を管理。
+# 使用例: バッチ(cpn_coupon_grant_batch)でユーザ U67890 にクーポンを配布し、grant_method=BATCH・grant_batch_id=123 を記録。
 # Columnについては解説
 # status: AVAILABLE/RESERVED/USED などの券ステータス。
 # per_user_sequence は「同じクーポンをそのユーザが何枚目として取得したか」を表す連番です。
@@ -497,13 +501,18 @@ CREATE TABLE cpn_coupon_usage
 
 
 # ord_order は EC 注文のヘッダ情報を管理するテーブルです。
-# 金額内訳、状態、適用クーポンや支払・配送ステータスを一元的に保持し、決済・出荷・アフターサービスの各フローの起点となります。
-# 使用例: ユーザ U12345 の注文 ORD-20240501 に対し、割引前後の金額や決済・配送状態を集約。
+# 金額内訳、状態、適用クーポンや支払・配送ステータスを一元的に保持し、決済・出荷・の各フローの起点となります。
+# 使用例: ユーザ U12345 が 2024/05/01 に注文 ORD-20240501 を作成。ドレス 20,000 円とジャケット 15,000 円を購入し、subtotal_amount は 35,000 円。
+#   クーポンを 2 枚使用：ドレス用に 3,000 円 OFF、ジャケット用に 2,000 円 OFF。合計割引 5,000 円が coupon_discount_amount および discount_amount に記録される。
+#   商品にかかる消費税は 3,000 円、送料は 500 円。最終的に支払う total_amount は 35,000 − 5,000 + 3,000 + 500 = 33,500 円。
+#   使用したクーポンごとに cpn_coupon_usage に applied_amount を残し、返品があれば refunded_amount や settled_amount に反映。ord_order の discount_amount / coupon_discount_amount から注文全体でいくら券を使ったかを把握できる。
 # Columnについては解説
 # subtotal_amount / discount_amount / total_amount: 金額内訳。税や割引を含め注文全体のサマリを保持。
 # payment_status / shipment_status: 決済・配送の最新状態。
 # coupon_id / coupon_code / coupon_discount_amount: 適用したクーポンと割引額。
 # shipping_address_snapshot / billing_address_snapshot: 注文時点の住所スナップショット。
+
+
 CREATE TABLE ord_order
 (
     id                       BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '注文ID',
@@ -549,7 +558,20 @@ CREATE TABLE ord_order
 
 # ord_order_item は注文に含まれる商品明細を管理するテーブルです。
 # SKU・数量・価格情報のスナップショットを保持し、在庫引当・返品・売上分析などの粒度として活用します。
-# 使用例: 注文 ORD-20240501 内の「ブルー/M サイズ シャツ ×2 点」を行番号 1 として記録。
+# 使用例: ユーザ U12345 が 2024/05/01 に注文 ORD-20240501 を作成し、ドレス 20,000 円とジャケット 15,000 円を購入。明細レベルで見ると以下のようになります。
+#
+#   - 明細行1（line_number=1）ドレス 20,000 円
+#     list_price=20,000、sale_price=20,000（明細レベルの追加割引なし）
+#     クーポンで 3,000 円をこの行に割り当てるので discount_amount=3,000。
+#     明細の total_amount は 20,000 − 3,000 = 17,000。
+#   - 明細行2（line_number=2）ジャケット 15,000 円
+#     list_price=15,000、sale_price=15,000。
+#     クーポン割引 2,000 円を discount_amount に記録し、total_amount=15,000 − 2,000 = 13,000。
+#
+#   この2行の total_amount（17,000 + 13,000 = 30,000）と、注文ヘッダ（ord_order）側の税額 3,000、送料 500、クーポン割引合計 5,000 を組み合わせると、
+#   注文全体の total_amount 33,500 と一致します。
+#   割引をどの明細にどう配分したかを discount_amount で残しておくことで、部分返品時のクーポン返金額や売上計上の粒度を明細単位で管理できます。
+
 # Columnについては解説
 # line_number: 注文内での明細行番号。表示順や識別に利用。
 # quantity: 注文数量。返品・在庫引当の基準。
