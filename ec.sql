@@ -632,3 +632,166 @@ CREATE TABLE ord_order_item
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='注文明細';
+
+-- ============================================================================
+-- ER図用外部キー制約
+-- ============================================================================
+ALTER TABLE prd_sku
+    ADD CONSTRAINT fk_prd_sku_spu
+        FOREIGN KEY (spu_id) REFERENCES prd_spu (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE prd_sku_image
+    ADD CONSTRAINT fk_prd_sku_image_sku
+        FOREIGN KEY (sku_id) REFERENCES prd_sku (id)
+        ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE inv_stock
+    ADD CONSTRAINT fk_inv_stock_sku
+        FOREIGN KEY (sku_id) REFERENCES prd_sku (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE inv_stock_movement
+    ADD CONSTRAINT fk_inv_stock_movement_sku
+        FOREIGN KEY (sku_id) REFERENCES prd_sku (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_audience_rule
+    ADD CONSTRAINT fk_cpn_audience_rule_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_audience_user
+    ADD CONSTRAINT fk_cpn_audience_user_rule
+        FOREIGN KEY (rule_id) REFERENCES cpn_coupon_audience_rule (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_audience_user_user
+        FOREIGN KEY (user_id) REFERENCES usr_user (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_audience_user_user_code
+        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
+        ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_audience_bucket
+    ADD CONSTRAINT fk_cpn_audience_bucket_rule
+        FOREIGN KEY (rule_id) REFERENCES cpn_coupon_audience_rule (id)
+        ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_grant_batch
+    ADD CONSTRAINT fk_cpn_grant_batch_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_grant_batch_rule
+        FOREIGN KEY (target_rule_id) REFERENCES cpn_coupon_audience_rule (id)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_inventory
+    ADD CONSTRAINT fk_cpn_inventory_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_user
+    ADD CONSTRAINT fk_cpn_user_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_user
+        FOREIGN KEY (user_id) REFERENCES usr_user (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_batch
+        FOREIGN KEY (grant_batch_id) REFERENCES cpn_coupon_grant_batch (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_reserved_order
+        FOREIGN KEY (reserved_order_id) REFERENCES ord_order (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_used_order
+        FOREIGN KEY (used_order_id) REFERENCES ord_order (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_user_code
+        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_reserved_order_code
+        FOREIGN KEY (reserved_order_code) REFERENCES ord_order (order_code)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_used_order_code
+        FOREIGN KEY (used_order_code) REFERENCES ord_order (order_code)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_usage
+    ADD CONSTRAINT fk_cpn_usage_coupon_user
+        FOREIGN KEY (coupon_user_id) REFERENCES cpn_coupon_user (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_user
+        FOREIGN KEY (user_id) REFERENCES usr_user (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_order
+        FOREIGN KEY (order_id) REFERENCES ord_order (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_coupon_code
+        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_user_code
+        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_usage_order_code
+        FOREIGN KEY (order_code) REFERENCES ord_order (order_code)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE cpn_coupon_user_history
+    ADD CONSTRAINT fk_cpn_user_history_coupon_user
+        FOREIGN KEY (coupon_user_id) REFERENCES cpn_coupon_user (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_user
+        FOREIGN KEY (user_id) REFERENCES usr_user (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_order
+        FOREIGN KEY (related_order_id) REFERENCES ord_order (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_usage
+        FOREIGN KEY (related_usage_id) REFERENCES cpn_coupon_usage (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_coupon_code
+        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_user_code
+        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_cpn_user_history_order_code
+        FOREIGN KEY (related_order_code) REFERENCES ord_order (order_code)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE ord_order
+    ADD CONSTRAINT fk_ord_order_user
+        FOREIGN KEY (user_id) REFERENCES usr_user (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_order_coupon
+        FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_order_user_code
+        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_order_coupon_code
+        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
+        ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE ord_order_item
+    ADD CONSTRAINT fk_ord_item_order
+        FOREIGN KEY (order_id) REFERENCES ord_order (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_item_spu
+        FOREIGN KEY (spu_id) REFERENCES prd_spu (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_item_sku
+        FOREIGN KEY (sku_id) REFERENCES prd_sku (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_item_order_code
+        FOREIGN KEY (order_code) REFERENCES ord_order (order_code)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_ord_item_sku_code
+        FOREIGN KEY (sku_code) REFERENCES prd_sku (sku_code)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
