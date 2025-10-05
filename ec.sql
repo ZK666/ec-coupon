@@ -667,9 +667,6 @@ ALTER TABLE cpn_coupon_audience_user
         ON DELETE CASCADE ON UPDATE CASCADE,
     ADD CONSTRAINT fk_cpn_audience_user_user
         FOREIGN KEY (user_id) REFERENCES usr_user (id)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_audience_user_user_code
-        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
         ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE cpn_coupon_audience_bucket
@@ -705,15 +702,6 @@ ALTER TABLE cpn_coupon_user
         ON DELETE SET NULL ON UPDATE CASCADE,
     ADD CONSTRAINT fk_cpn_user_used_order
         FOREIGN KEY (used_order_id) REFERENCES ord_order (id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_user_code
-        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_reserved_order_code
-        FOREIGN KEY (reserved_order_code) REFERENCES ord_order (order_code)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_used_order_code
-        FOREIGN KEY (used_order_code) REFERENCES ord_order (order_code)
         ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE cpn_coupon_usage
@@ -728,15 +716,6 @@ ALTER TABLE cpn_coupon_usage
         ON DELETE RESTRICT ON UPDATE CASCADE,
     ADD CONSTRAINT fk_cpn_usage_order
         FOREIGN KEY (order_id) REFERENCES ord_order (id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_usage_coupon_code
-        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_usage_user_code
-        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_usage_order_code
-        FOREIGN KEY (order_code) REFERENCES ord_order (order_code)
         ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE cpn_coupon_user_history
@@ -754,15 +733,6 @@ ALTER TABLE cpn_coupon_user_history
         ON DELETE SET NULL ON UPDATE CASCADE,
     ADD CONSTRAINT fk_cpn_user_history_usage
         FOREIGN KEY (related_usage_id) REFERENCES cpn_coupon_usage (id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_history_coupon_code
-        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_history_user_code
-        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_cpn_user_history_order_code
-        FOREIGN KEY (related_order_code) REFERENCES ord_order (order_code)
         ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE ord_order
@@ -771,12 +741,6 @@ ALTER TABLE ord_order
         ON DELETE RESTRICT ON UPDATE CASCADE,
     ADD CONSTRAINT fk_ord_order_coupon
         FOREIGN KEY (coupon_id) REFERENCES cpn_coupon (id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_ord_order_user_code
-        FOREIGN KEY (user_code) REFERENCES usr_user (user_code)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_ord_order_coupon_code
-        FOREIGN KEY (coupon_code) REFERENCES cpn_coupon (coupon_code)
         ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE ord_order_item
@@ -788,10 +752,4 @@ ALTER TABLE ord_order_item
         ON DELETE RESTRICT ON UPDATE CASCADE,
     ADD CONSTRAINT fk_ord_item_sku
         FOREIGN KEY (sku_id) REFERENCES prd_sku (id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_ord_item_order_code
-        FOREIGN KEY (order_code) REFERENCES ord_order (order_code)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_ord_item_sku_code
-        FOREIGN KEY (sku_code) REFERENCES prd_sku (sku_code)
         ON DELETE RESTRICT ON UPDATE CASCADE;
