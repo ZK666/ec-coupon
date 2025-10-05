@@ -26,8 +26,8 @@
 #
 #   - ord_order (注文ヘッダ)
 #   - ord_order_item (注文明細)
-#   - ord_payment (決済トランザクション)
-#   - ord_shipment (配送情報)
+#   - todo ord_payment (決済トランザクション)
+#   - todo ord_shipment (配送情報)
 #
 #   クーポン／マーケティングドメイン (cpn_)
 #
@@ -596,7 +596,7 @@ CREATE TABLE ord_order
 #
 #   この2行の total_amount（17,000 + 13,000 = 30,000）と、注文ヘッダ（ord_order）側の税額 3,000、送料 500、クーポン割引合計 5,000 を組み合わせると、
 #   注文全体の total_amount 33,500 と一致します。
-#   割引をどの明細にどう配分したかを discount_amount で残しておくことで、部分返品時のクーポン返金額や売上計上の粒度を明細単位で管理できます。\
+#   割引をどの明細にどう配分したかを discount_amount で残しておくことで、部分返品時のクーポン返金額や売上計上の粒度を明細単位で管理できます。
 # Columnについては解説
 # line_number: 注文内での明細行番号。表示順や識別に利用。
 # quantity: 注文数量。返品・在庫引当の基準。
