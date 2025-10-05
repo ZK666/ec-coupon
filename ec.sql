@@ -1,21 +1,50 @@
-# 用户域 (User)
-#        usr_
-# usr_user, usr_user_address, usr_user_login_log
-# 商品域 (Product)
-# prd_
-# prd_product (SPU), prd_product_sku (SKU), prd_product_image
-# 库存域 (Inventory)
-# inv_
-# inv_stock, inv_stock_movement
-# 订单域 (Order)
-# ord_
-# ord_order, ord_order_item, ord_payment, ord_shipment
-# 优惠券/营销域 (Coupon)
-# cpn_
-# cpn_coupon, cpn_coupon_usage, cpn_campaign
-# 管理端/后台 (Admin)
-# adm_
-# adm_user, adm_role, adm_permission
+# ドメイン一覧
+#
+#   - usr_ : ユーザドメイン
+#   - prd_ : 商品ドメイン
+#   - inv_ : 在庫ドメイン
+#   - ord_ : 注文ドメイン
+#   - cpn_ : クーポン／マーケティングドメイン
+#   - adm_ : 管理ドメイン／バックオフィス
+#
+#   ユーザドメイン (usr_)
+#
+#   - usr_user (ユーザテーブル)
+#
+#   商品ドメイン (prd_)
+#
+#   - prd_spu (商品SPU（標準商品単位）)
+#   - prd_sku (商品SKU（個別商品単位）)
+#   - prd_sku_image (SKU画像テーブル)
+#
+#   在庫ドメイン (inv_)
+#
+#   - inv_stock (SKU在庫（単一バケット）)
+#   - inv_stock_movement (在庫変動履歴)
+#
+#   注文ドメイン (ord_)
+#
+#   - ord_order (注文ヘッダ)
+#   - ord_order_item (注文明細)
+#   - ord_payment (決済トランザクション)
+#   - ord_shipment (配送情報)
+#
+#   クーポン／マーケティングドメイン (cpn_)
+#
+#   - cpn_coupon (クーポン基本情報)
+#   - cpn_coupon_audience_rule (クーポン対象ルール（ヘッダ）)
+#   - cpn_coupon_audience_user (クーポン対象ルール（個別ユーザ）)
+#   - cpn_coupon_audience_bucket (クーポン対象ルール（割合指定）)
+#   - cpn_coupon_grant_batch (クーポン発行バッチ)
+#   - cpn_coupon_inventory (クーポン在庫状態)
+#   - cpn_coupon_user (ユーザ保有クーポン)
+#   - cpn_coupon_user_history (ユーザ保有クーポン状態履歴)
+#   - cpn_coupon_usage (クーポン利用履歴)
+#
+#   管理ドメイン／バックオフィス (adm_)
+#
+#   - （例: adm_user, adm_role, adm_permission など）
+
 
 
 # usr_user は会員の基礎属性を保持するテーブルです。
@@ -50,7 +79,6 @@ CREATE TABLE usr_user
   DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザテーブル';
 
 
-
 # prd_spu は商品マスターの上位概念（SPU）を管理するテーブルです。
 # ブランド・カテゴリなどの共通属性をまとめ、SKU や商品画像テーブルと連携して商品情報の整理・検索を容易にします。
 # 使用例: レディースシャツの SPU を登録し、カラー別の SKU と画像を紐付けて商品ページを構成する。
@@ -73,6 +101,7 @@ CREATE TABLE prd_spu
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='商品SPU（標準商品単位）';
+
 
 # prd_sku は SPU に紐づく販売単位（SKU）を保持するテーブルです。
 # SKUコードやサイズ・カラーなどのバリエーション属性を管理し、商品検索や外部連携に活用します。価格系カラムと監査項目を備え、商品マスター運用や在庫連携の整合性を取りやすくしています。
@@ -99,6 +128,7 @@ CREATE TABLE prd_sku
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='商品SKU（個別商品単位）';
 
+
 # prd_sku_image は SKU ごとの画像情報を保持するテーブルです。
 # メイン画像フラグや表示順を管理し、商品表示や管理画面での並び替えに利用します。論理削除・監査カラムで運用履歴も追跡できます。
 # 使用例: レディースシャツの「正面」「背面」「ディテール」画像を登録。
@@ -106,7 +136,6 @@ CREATE TABLE prd_sku
 # alt_text: 画像が表示できないときに出す代替文。アクセシビリティ対策。
 # is_primary: 一覧や詳細で先頭表示するメイン画像かどうか。
 # sort_order: 画像表示順を決める番号。小さい値ほど先頭。
-
 CREATE TABLE prd_sku_image
 (
     id         BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT 'SKU画像ID',
@@ -124,6 +153,7 @@ CREATE TABLE prd_sku_image
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='SKU画像テーブル';
+
 
 # inv_stock は SKU 単位の在庫残高を管理するテーブルです。
 # 可用数量・予約数量・安全在庫を保持し、version 列で楽観ロックを行います。EC・OMS・倉庫システム間の在庫同期で基準となる値です。
@@ -149,6 +179,7 @@ CREATE TABLE inv_stock
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='SKU在庫（単一バケット）';
+
 
 # inv_stock_movement は在庫変動を履歴として保持するテーブルです。
 # 変動種別や発生元情報、変動後在庫を記録し、在庫調査・会計監査・指標分析（回転率など）に活用します。
@@ -176,8 +207,6 @@ CREATE TABLE inv_stock_movement
 )
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='在庫変動履歴';
-
-
 
 
 # cpn_coupon はクーポンの基本定義を管理するテーブルです。
@@ -240,6 +269,7 @@ CREATE TABLE cpn_coupon_audience_rule
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（ヘッダ）';
 
+
 # cpn_coupon_audience_user は個別ユーザを対象とするルールの明細テーブルです。
 # ルールIDと user_id/user_code を紐付け、名簿配布や除外リストを表現します。一意制約と監査項目で運用ミスを防ぎます。
 # 使用例: 「user_code=U12345,U12346 に配布」「user_code=U99999 を除外」といった名簿を登録。
@@ -265,6 +295,7 @@ CREATE TABLE cpn_coupon_audience_user
 )
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（個別ユーザ）';
+
 
 # cpn_coupon_audience_bucket はハッシュ分割による割合配布ルールを保持するテーブル。
 # 使用例: bucket_modulus=100, start=0, end=9 で全ユーザの 10% にランダム配布。
@@ -299,7 +330,6 @@ CREATE TABLE cpn_coupon_audience_bucket
 )
 ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン対象ルール（割合指定）';
-
 
 
 # cpn_coupon_inventory はクーポンの発行枚数・利用枚数・ロック枚数を管理するテーブルです。
@@ -367,7 +397,6 @@ CREATE TABLE cpn_coupon_grant_batch
     DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン発行バッチ';
 
 
-
 # cpn_coupon_user はユーザが保有するクーポンチケットを管理するテーブルです。
 # 取得方法やステータス、仮押さえ情報を保持し、利用上限の判定や利用状況の追跡に利用します。
 # 使用例: ユーザ U12345 が「母の日 500 円OFF」を取得し、status を AVAILABLE→RESERVED→USED と遷移させて利用状況を管理。
@@ -417,6 +446,7 @@ CREATE TABLE cpn_coupon_user
 )
     ENGINE = InnoDB
     DEFAULT CHARSET = utf8mb4 COMMENT ='ユーザ保有クーポン';
+
 
 # cpn_coupon_user_history はユーザ保有クーポンの状態遷移ログを保持するテーブルです。
 # 変更前後のステータスや操作種別、関連注文・利用履歴を記録し、監査やトラブル調査に利用します。
@@ -498,8 +528,6 @@ CREATE TABLE cpn_coupon_usage
     DEFAULT CHARSET = utf8mb4 COMMENT ='クーポン利用履歴';
 
 
-
-
 # ord_order は EC 注文のヘッダ情報を管理するテーブルです。
 # 金額内訳、状態、適用クーポンや支払・配送ステータスを一元的に保持し、決済・出荷・の各フローの起点となります。
 # 使用例: ユーザ U12345 が 2024/05/01 に注文 ORD-20240501 を作成。ドレス 20,000 円とジャケット 15,000 円を購入し、subtotal_amount は 35,000 円。
@@ -511,8 +539,6 @@ CREATE TABLE cpn_coupon_usage
 # payment_status / shipment_status: 決済・配送の最新状態。
 # coupon_id / coupon_code / coupon_discount_amount: 適用したクーポンと割引額。
 # shipping_address_snapshot / billing_address_snapshot: 注文時点の住所スナップショット。
-
-
 CREATE TABLE ord_order
 (
     id                       BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '注文ID',
@@ -570,8 +596,7 @@ CREATE TABLE ord_order
 #
 #   この2行の total_amount（17,000 + 13,000 = 30,000）と、注文ヘッダ（ord_order）側の税額 3,000、送料 500、クーポン割引合計 5,000 を組み合わせると、
 #   注文全体の total_amount 33,500 と一致します。
-#   割引をどの明細にどう配分したかを discount_amount で残しておくことで、部分返品時のクーポン返金額や売上計上の粒度を明細単位で管理できます。
-
+#   割引をどの明細にどう配分したかを discount_amount で残しておくことで、部分返品時のクーポン返金額や売上計上の粒度を明細単位で管理できます。\
 # Columnについては解説
 # line_number: 注文内での明細行番号。表示順や識別に利用。
 # quantity: 注文数量。返品・在庫引当の基準。
